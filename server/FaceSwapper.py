@@ -2,7 +2,6 @@ import os
 import time
 import base64
 import heapq
-from pathlib import Path
 from multiprocessing import Queue, Process
 
 import numpy as np
@@ -13,7 +12,6 @@ ROOT = os.path.dirname(__file__)
 
 extractor_gpu_idxs = [0]
 merger_gpu_idxs = [1]
-dfm_model_file = 'models/Kim_Jarrey.dfm'
 
 
 class Frame:
@@ -26,7 +24,20 @@ class Frame:
 
 
 class FaceSwapper:
-    def __init__(self):
+    def __init__(self, dfm_model_file):
+        # 检查dfm模型文件是否存在
+        if dfm_model_file is not None:
+            dfm_model_file = ROOT + '/models/' + dfm_model_file
+            if not os.path.exists(dfm_model_file):
+                raise ValueError("Invalid dfm model filename.")
+        else:
+            for model_file_path in os.listdir(ROOT + '/models/'):
+                if os.path.splitext(model_file_path)[1] == '.dfm':
+                    dfm_model_file = ROOT + '/models/' + model_file_path
+                    break
+            if dfm_model_file is None:
+                raise ValueError("Unable to find the dfm model file.")
+
         self.input_q = Queue(15)  # extractor输入队列
         self.mid_q = Queue(15)  # extractor和merger之间的队列
         self.output_q = Queue(15)  # merger输出队列
@@ -37,7 +48,7 @@ class FaceSwapper:
         for gpu_idx in extractor_gpu_idxs:
             self.workers.append(ExtractWorker(self.input_q, self.mid_q, gpu_idx))
         for gpu_idx in merger_gpu_idxs:
-            self.workers.append(MergeWorker(self.mid_q, self.output_q, gpu_idx))
+            self.workers.append(MergeWorker(self.mid_q, self.output_q, dfm_model_file, gpu_idx))
 
         for w in self.workers:
             w.start()
@@ -58,7 +69,7 @@ class FaceSwapper:
         while not self.output_q.empty():
             heapq.heappush(self.heap, self.output_q.get())
 
-        if len(self.heap) > 2:
+        if len(self.heap) > len(self.workers):
             frame = heapq.heappop(self.heap).img
             self.last_frame = frame
         else:
@@ -101,7 +112,7 @@ class ExtractWorker(Process):
         landmarks_extractor = cv2.face.createFacemarkLBF()  # 人脸特征点提取
         landmarks_extractor.loadModel(ROOT + "/models/lbfmodel.yaml")
 
-        print("extractor loaded")
+        print("Models loaded and ready to work...")
 
         while True:
             frame = self.input_q.get()
@@ -120,10 +131,11 @@ class ExtractWorker(Process):
 
 
 class MergeWorker(Process):
-    def __init__(self, input_q, output_q, gpu_idx):
+    def __init__(self, input_q, output_q, dfm_model_file, gpu_idx):
         Process.__init__(self)
         self.input_q = input_q
         self.output_q = output_q
+        self.dfm_model_file = dfm_model_file
         self.gpu_idx = gpu_idx
 
     def run(self):
@@ -137,20 +149,17 @@ class MergeWorker(Process):
         from server.MergeMasked2 import MergeMasked2
         from server.DFMModel import DFMModel
 
-        # 选择模型、设备
-        saved_models_path = Path(os.path.join(ROOT, dfm_model_file))
+        # 指定设备
         device_info = get_available_devices_info(include_cpu=False)[self.gpu_idx]
         print('merger on: ' + str(device_info))
 
-        model = DFMModel(saved_models_path, device_info)
+        model = DFMModel(self.dfm_model_file, device_info)
         predictor_func = model.convert
 
         # 调节合成参数
         predictor_input_shape = (256, 256, 3)
         cfg = MergerConfigMasked(face_type=4)
         cfg.add_blur_mask_modifier(30)
-
-        print("merger loaded")
 
         while True:
             print("mid_queue: " + str(self.input_q.qsize()))
@@ -165,7 +174,7 @@ class MergeWorker(Process):
                                          cfg=cfg,
                                          img_bgr_uint8=frame.img,
                                          landmarks_list=landmarks)
-                print("merge: " + str(time.time()*1000 - time0))
+                print("merge time(ms): " + str(time.time()*1000 - time0))
 
             while self.output_q.full():
                 self.output_q.get()
