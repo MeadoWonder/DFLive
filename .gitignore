@@ -1,6 +1,4 @@
 .github/
 .idea/
 .vscode/
-*.npy
-*.yaml
 *.dfm

@@ -11,8 +11,9 @@ import cv2
 
 ROOT = os.path.dirname(__file__)
 
-selected_gpu_idxs = [0]
-num_extract_workers = 1
+extractor_gpu_idxs = [0]
+merger_gpu_idxs = [1]
+dfm_model_file = 'models/Kim_Jarrey.dfm'
 
 
 class Frame:
@@ -33,9 +34,9 @@ class FaceSwapper:
         self.cnt = 0
 
         self.workers = []
-        for _ in range(num_extract_workers):
-            self.workers.append(ExtractWorker(self.input_q, self.mid_q))
-        for gpu_idx in selected_gpu_idxs:
+        for gpu_idx in extractor_gpu_idxs:
+            self.workers.append(ExtractWorker(self.input_q, self.mid_q, gpu_idx))
+        for gpu_idx in merger_gpu_idxs:
             self.workers.append(MergeWorker(self.mid_q, self.output_q, gpu_idx))
 
         for w in self.workers:
@@ -75,17 +76,20 @@ class FaceSwapper:
 
 
 class ExtractWorker(Process):
-    def __init__(self, input_q, output_q):
+    def __init__(self, input_q, output_q, gpu_idx):
         Process.__init__(self)
         self.input_q = input_q
         self.output_q = output_q
+        self.gpu_idx = gpu_idx
 
     def run(self):
         print("extractor loading...")
 
         from DeepFaceLab.core.leras import nn
         nn.initialize_main_env()
-        nn.setCurrentDeviceConfig(nn.DeviceConfig.BestGPU())
+
+        device_config = nn.DeviceConfig.GPUIndexes([self.gpu_idx])
+        nn.initialize(device_config)
 
         from DeepFaceLab.mainscripts.Extractor import ExtractSubprocessor
         from DeepFaceLab.facelib import S3FDExtractor
@@ -100,16 +104,15 @@ class ExtractWorker(Process):
 
         while True:
             frame = self.input_q.get()
-            time0 = time.time()
+
             data = ExtractSubprocessor.Cli.rects_stage(data, frame.img, 1, rects_extractor)
             data.rects = [(l, t, r-l, b-t) for (l, t, r, b) in data.rects]
-            print("rects: " + str(time.time() - time0))
+
             if len(data.rects) == 0:  # 无人脸，直接返回
                 data.landmarks = [None]
             else:
-                time0 = time.time()
                 _, data.landmarks = landmarks_extractor.fit(frame.img, np.array(data.rects))
-                print("mark: " + str(time.time() - time0))
+
             while self.output_q.full():
                 self.output_q.get()
             self.output_q.put((frame, data.landmarks[0]))
@@ -134,9 +137,9 @@ class MergeWorker(Process):
         from server.DFMModel import DFMModel
 
         # 选择模型
-        saved_models_path = Path(os.path.join(ROOT, 'models/Kim_Jarrey.dfm'))
+        saved_models_path = Path(os.path.join(ROOT, dfm_model_file))
         device_info = get_available_devices_info(include_cpu=False)[self.gpu_idx]
-        print(device_info)
+        print('merger on: ' + str(device_info))
 
         model = DFMModel(saved_models_path, device_info)
         predictor_func = model.convert
@@ -149,11 +152,11 @@ class MergeWorker(Process):
         print("merger loaded")
 
         while True:
-            print("merger_log: " + str(self.input_q.qsize()))
+            print("mid_queue: " + str(self.input_q.qsize()))
             frame, landmarks = self.input_q.get()
 
             if landmarks is not None:
-                time0 = time.time()
+                time0 = time.time() * 1000
                 frame.img = MergeMasked2(predictor_func,
                                          predictor_input_shape,
                                          face_enhancer_func=None,
@@ -161,7 +164,7 @@ class MergeWorker(Process):
                                          cfg=cfg,
                                          img_bgr_uint8=frame.img,
                                          landmarks_list=landmarks)
-                print("merge: " + str(time.time() - time0))
+                print("merge: " + str(time.time()*1000 - time0))
 
             while self.output_q.full():
                 self.output_q.get()

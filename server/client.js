@@ -11,6 +11,10 @@
       audio: false
     };
 
+    if(navigator.mediaDevices == undefined) {
+        document.getElementById('reminder').innerHTML = '需使用https或者将地址添加到chrome://flags/#unsafely-treat-insecure-origin-as-secure'
+    }
+
     var promise = navigator.mediaDevices.getUserMedia(constraints);
     promise.then(function (MediaStream) {
       video.srcObject = MediaStream;
