@@ -88,14 +88,15 @@ class ExtractWorker(Process):
         from DeepFaceLab.core.leras import nn
         nn.initialize_main_env()
 
-        device_config = nn.DeviceConfig.GPUIndexes([self.gpu_idx])
-        nn.initialize(device_config)
-
         from DeepFaceLab.mainscripts.Extractor import ExtractSubprocessor
-        from DeepFaceLab.facelib import S3FDExtractor
+        from xlib.onnxruntime.device import get_available_devices_info
+        from server.YoloV5Face import YoloV5Face
 
         data = ExtractSubprocessor.Data()
-        rects_extractor = S3FDExtractor()  # 人脸检测（输出方框）
+
+        device_info = get_available_devices_info(include_cpu=False)[self.gpu_idx]
+        print('rects_extractor on: ' + str(device_info))
+        rects_extractor = YoloV5Face(device_info)  # 人脸检测（输出方框）
 
         landmarks_extractor = cv2.face.createFacemarkLBF()  # 人脸特征点提取
         landmarks_extractor.loadModel(ROOT + "/models/lbfmodel.yaml")
@@ -106,7 +107,7 @@ class ExtractWorker(Process):
             frame = self.input_q.get()
 
             data = ExtractSubprocessor.Cli.rects_stage(data, frame.img, 1, rects_extractor)
-            data.rects = [(l, t, r-l, b-t) for (l, t, r, b) in data.rects]
+            data.rects = [(l, t, r-l, b-t) for (l, t, r, b) in data.rects[0]]
 
             if len(data.rects) == 0:  # 无人脸，直接返回
                 data.landmarks = [None]
@@ -136,7 +137,7 @@ class MergeWorker(Process):
         from server.MergeMasked2 import MergeMasked2
         from server.DFMModel import DFMModel
 
-        # 选择模型
+        # 选择模型、设备
         saved_models_path = Path(os.path.join(ROOT, dfm_model_file))
         device_info = get_available_devices_info(include_cpu=False)[self.gpu_idx]
         print('merger on: ' + str(device_info))
