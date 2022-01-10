@@ -1,0 +1,13 @@
+tqdm
+numpy==1.19.3
+numexpr
+h5py==2.10.0
+opencv-python==4.5.5.0
+opencv-contrib-python==4.5.5.0
+ffmpeg-python==0.1.17
+scikit-image==0.14.2
+scipy==1.4.1
+tensorflow-gpu==2.4.0
+onnx==1.10.0
+onnxruntime==1.10.0
+aiohttp==3.7.4
