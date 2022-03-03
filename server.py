@@ -11,6 +11,7 @@ from aiohttp import web
 if __name__ == "__main__":
     multiprocessing.set_start_method("spawn")
 
+    sys.path.append((os.getcwd()))
     sys.path.append((os.getcwd() + "/DeepFaceLab"))
 
     parser = argparse.ArgumentParser(
@@ -40,11 +41,11 @@ if __name__ == "__main__":
 
 
     async def index(request):
-        content = open(os.path.join(ROOT, "index.html"), "r").read()
+        content = open(os.path.join("./server/index.html"), "r").read()
         return web.Response(content_type="text/html", text=content)
 
     async def javascript(request):
-        content = open(os.path.join(ROOT, "client.js"), "r").read()
+        content = open(os.path.join("./server/client.js"), "r").read()
         return web.Response(content_type="application/javascript", text=content)
 
     async def on_shutdown(app):

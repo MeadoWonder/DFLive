@@ -1,1 +1,1 @@
-from .FaceSwapper import FaceSwapper, ROOT
+from server.swap.FaceSwapper import FaceSwapper
