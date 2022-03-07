@@ -3,9 +3,12 @@ import sys
 import argparse
 import ssl
 import multiprocessing
+import base64
+import json
 
 import aiohttp
 from aiohttp import web
+import cv2
 
 
 if __name__ == "__main__":
@@ -38,6 +41,7 @@ if __name__ == "__main__":
 
     from server import *
     face_swapper = FaceSwapper(args.model)
+    df_detector = DFDetector()
 
 
     async def index(request):
@@ -58,8 +62,16 @@ if __name__ == "__main__":
 
         async for msg in ws:
             if msg.type == aiohttp.WSMsgType.TEXT:
-                frame_base64 = face_swapper.swap(msg.data)
-                await ws.send_str(frame_base64)
+                frame = face_swapper.swap(msg.data)
+                rect = [0, 0, 0, 0]
+                df_prob = 0
+                if frame.rects is not None and len(frame.rects) > 0:
+                    rect = frame.rects[0]
+                    df_prob = df_detector.detect(frame.img, rect) * 1000
+                frame_base64 = 'data:image/jpeg;base64,' + \
+                               base64.b64encode(cv2.imencode('.jpg', frame.img)[1]).decode('ascii')
+                img_rect_df_json = {'img': frame_base64, 'rect': rect, 'df_prob': int(df_prob)}
+                await ws.send_str(json.dumps(img_rect_df_json))
             elif msg.type == aiohttp.WSMsgType.ERROR:
                 print('ws connection closed with exception %s' %
                       ws.exception())

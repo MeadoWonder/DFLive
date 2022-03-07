@@ -8,6 +8,24 @@ import torch
 from torch.utils.data import Dataset
 
 
+# 切取RoI
+def cut_roi(img, rect):
+    height = len(img)
+    width = len(img[0])
+    l, t, r, b = rect
+
+    l3 = l - random.random() * (r - l) / 8
+    l3 = 0 if l3 < 0 else l3
+    t3 = t - random.random() * (b - t) / 5
+    t3 = 0 if t3 < 0 else t3
+    r3 = r + random.random() * (r - l) / 8
+    r3 = width - 1 if r3 > width - 1 else r3
+    b3 = b + random.random() * (b - t) / 5
+    b3 = height - 1 if b3 > height - 1 else b3
+    img = img[int(t3):int(b3), int(l3):int(r3)]
+    return img
+
+
 # 用于测试的人脸数据集
 class TimitDataset(Dataset):
     def __init__(self):
@@ -25,20 +43,7 @@ class TimitDataset(Dataset):
         label = 0 if 'original' in img_name else 1
 
         if img_name in self.rects:
-            height = len(img)
-            width = len(img[0])
-            l, t, r, b = self.rects[img_name]
-
-            # 切取RoI
-            l3 = l - random.random() * (r - l) / 8
-            l3 = 0 if l3 < 0 else l3
-            t3 = t - random.random() * (b - t) / 5
-            t3 = 0 if t3 < 0 else t3
-            r3 = r + random.random() * (r - l) / 8
-            r3 = width-1 if r3 > width-1 else r3
-            b3 = b + random.random() * (b - t) / 5
-            b3 = height-1 if b3 > height-1 else b3
-            img = img[int(t3):int(b3), int(l3):int(r3)]
+            img = cut_roi(img, self.rects[img_name])
 
         img = cv2.resize(img, (224, 224))
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) / 255.

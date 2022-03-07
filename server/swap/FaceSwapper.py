@@ -10,14 +10,15 @@ import cv2
 
 ROOT = os.path.dirname(__file__)
 
-extractor_gpu_idxs = [0]
-merger_gpu_idxs = [1]
+extractor_gpu_idxs = [2]
+merger_gpu_idxs = [3]
 
 
 class Frame:
-    def __init__(self, idx, img):  # idx: 帧序号，小的排在前面
+    def __init__(self, idx, img, rects=None):  # idx: 帧序号，小的排在前面
         self.idx = idx
         self.img = img
+        self.rects = rects
 
     def __lt__(self, other):
         return self.idx < other.idx
@@ -53,7 +54,7 @@ class FaceSwapper:
         for w in self.workers:
             w.start()
 
-        self.last_frame = np.zeros((320, 480, 3), np.uint8)  # 记录前一帧，掉帧时发送
+        self.last_frame = Frame(self.cnt, np.zeros((320, 480, 3), np.uint8))  # 记录前一帧，掉帧时发送
 
     def swap(self, img_base64):
         self.cnt += 1
@@ -70,12 +71,11 @@ class FaceSwapper:
             heapq.heappush(self.heap, self.output_q.get())
 
         if len(self.heap) > len(self.workers):
-            frame = heapq.heappop(self.heap).img
+            frame = heapq.heappop(self.heap)
             self.last_frame = frame
         else:
             frame = self.last_frame
 
-        frame = 'data:image/jpeg;base64,' + base64.b64encode(cv2.imencode('.jpg', frame)[1]).decode('ascii')
         return frame
 
     def terminate(self):
@@ -118,6 +118,7 @@ class ExtractWorker(Process):
             frame = self.input_q.get()
 
             data = ExtractSubprocessor.Cli.rects_stage(data, frame.img, 1, rects_extractor)
+            frame.rects = [[int(l), int(t), int(r), int(b)] for (l, t, r, b) in data.rects[0]]
             data.rects = [(l, t, r-l, b-t) for (l, t, r, b) in data.rects[0]]
 
             if len(data.rects) == 0:  # 无人脸，直接返回
