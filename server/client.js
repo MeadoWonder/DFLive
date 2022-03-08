@@ -3,6 +3,8 @@ var video = document.getElementById("video");
 var canvas = document.getElementById("canvas");
 var ctx = canvas.getContext('2d');
 var image = document.getElementById('receiver');
+var canvas2 = document.getElementById("receiver_canvas")
+var ctx2 = canvas2.getContext('2d')
 
 
 function getMedia() {
@@ -40,6 +42,8 @@ socket.onclose = function () {
 socket.onmessage = function (data) {
     data = JSON.parse(data.data)
     image.src = data.img;
+    ctx2.clearRect(0, 0, image.width, image.height)
+    ctx2.strokeRect(data.rect[0]*canvas2.width/480, data.rect[1]*canvas2.height/320, (data.rect[2]-data.rect[0])*canvas2.width/480, (data.rect[3]-data.rect[1])*canvas2.height/320)
     console.log(data.df_prob)
 }
 
