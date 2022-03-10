@@ -52,6 +52,10 @@ if __name__ == "__main__":
         content = open(os.path.join("./server/client.js"), "r").read()
         return web.Response(content_type="application/javascript", text=content)
 
+    async def echarts(request):
+        content = open(os.path.join("./server/echarts.min.js"), "r").read()
+        return web.Response(content_type="application/javascript", text=content)
+
     async def on_shutdown(app):
         face_swapper.terminate()
         print("shutdown...")
@@ -85,6 +89,7 @@ if __name__ == "__main__":
     app.on_shutdown.append(on_shutdown)
     app.router.add_get("/", index)
     app.router.add_get("/client.js", javascript)
+    app.router.add_get("/echarts.min.js", echarts)
     app.add_routes([web.get("/ws", websocket_handler)])
     web.run_app(
         app, access_log=None, host=args.host, port=args.port, ssl_context=ssl_context

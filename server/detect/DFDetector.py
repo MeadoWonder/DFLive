@@ -21,5 +21,9 @@ class DFDetector:
         inputs = {self.session.get_inputs()[0].name: img}
         output = self.session.run(['output'], inputs)[0][0]
 
-        result = float(output[1] / (output[0] + output[1]) - 0.31) / 0.27
+        result = float(output[1] / (output[0] + output[1]) - 0.4) / 0.16
+        if result > 1:
+            result = 1
+        if result < 0:
+            result = 0
         return result

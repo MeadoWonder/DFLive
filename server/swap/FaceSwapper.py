@@ -15,10 +15,11 @@ merger_gpu_idxs = [3]
 
 
 class Frame:
-    def __init__(self, idx, img, rects=None):  # idx: 帧序号，小的排在前面
+    def __init__(self, idx, img, rects=None, is_df_off=False):  # idx: 帧序号，小的排在前面
         self.idx = idx
         self.img = img
         self.rects = rects
+        self.is_df_off = is_df_off
 
     def __lt__(self, other):
         return self.idx < other.idx
@@ -61,7 +62,7 @@ class FaceSwapper:
         header, frame = img_base64.split(',', 1)
         frame = base64.b64decode(frame)
         frame = np.frombuffer(frame, np.uint8)
-        frame = Frame(self.cnt, cv2.imdecode(frame, cv2.IMREAD_COLOR))
+        frame = Frame(self.cnt, cv2.imdecode(frame, cv2.IMREAD_COLOR), is_df_off=header[0].startswith('F'))  # 如果以'F'开头，则表示不用换脸
 
         while self.input_q.full():
             self.input_q.get()
@@ -121,7 +122,7 @@ class ExtractWorker(Process):
             frame.rects = [[int(l), int(t), int(r), int(b)] for (l, t, r, b) in data.rects[0]]
             data.rects = [(l, t, r-l, b-t) for (l, t, r, b) in data.rects[0]]
 
-            if len(data.rects) == 0:  # 无人脸，直接返回
+            if len(data.rects) == 0 or frame.is_df_off:  # 不需要换脸，直接返回
                 data.landmarks = [None]
             else:
                 _, data.landmarks = landmarks_extractor.fit(frame.img, np.array(data.rects))
