@@ -8,9 +8,11 @@ from server.detect.timit_dataset import cut_roi
 
 
 class DFDetector:
-    def __init__(self, model_file=os.path.dirname(__file__)+'/data/detect_model.onnx'):
+    def __init__(self, model_file=os.path.dirname(__file__)+'/data/detect_model.onnx', device_id=1):
         print("detector loading...")
-        self.session = onnxruntime.InferenceSession(model_file, providers=['CUDAExecutionProvider'], provider_options=[{'device_id': 1}])
+        self.session = onnxruntime.InferenceSession(model_file,
+                                                    providers=['CUDAExecutionProvider'],
+                                                    provider_options=[{'device_id': device_id}])
 
     def detect(self, img, rect):
         img = cut_roi(img, rect)

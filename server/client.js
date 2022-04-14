@@ -31,7 +31,7 @@ function getMedia() {
 getMedia();
 
 // 打开socket
-var socket = new WebSocket("ws://162.105.89.56:35036/ws?video");
+var socket = new WebSocket("ws://" + window.location.host + "/ws?video");
 
 socket.onopen = function () {
     console.log("open success")

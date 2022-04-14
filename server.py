@@ -5,6 +5,7 @@ import ssl
 import multiprocessing
 import base64
 import json
+import configparser
 
 import aiohttp
 from aiohttp import web
@@ -17,19 +18,23 @@ if __name__ == "__main__":
     sys.path.append((os.getcwd()))
     sys.path.append((os.getcwd() + "/DeepFaceLab"))
 
+    config = configparser.ConfigParser()
+    config.read("./config.ini")
+    gpu_ids = [int(x) for x in config['gpu']['gpu_ids'].split(',')]
+
     parser = argparse.ArgumentParser(
         description="video demo"
     )
     parser.add_argument("--cert-file", help="SSL certificate file (for HTTPS)")
     parser.add_argument("--key-file", help="SSL key file (for HTTPS)")
     parser.add_argument(
-        "--host", default="0.0.0.0", help="Host for HTTP server (default: 0.0.0.0)"
+        "--host", default=config['server']['ip'], help="Host IP for HTTP server"
     )
     parser.add_argument(
-        "--port", type=int, default=10001, help="Port for HTTP server"
+        "--port", default=config.getint('server', 'port'), type=int, help="Port for HTTP server"
     )
     parser.add_argument(
-        "--model", help="Filename of your dfm model"
+        "--model", default=config['model']['dfm'], help="Filename of your dfm model"
     )
     args = parser.parse_args()
 
@@ -40,8 +45,8 @@ if __name__ == "__main__":
         ssl_context = None
 
     from server import *
-    face_swapper = FaceSwapper(args.model)
-    df_detector = DFDetector()
+    face_swapper = FaceSwapper(args.model, gpu_ids[0], gpu_ids[1])
+    df_detector = DFDetector(gpu_ids[2])
 
 
     async def index(request):

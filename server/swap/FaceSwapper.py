@@ -10,9 +10,6 @@ import cv2
 
 ROOT = os.path.dirname(__file__)
 
-extractor_gpu_idxs = [2]
-merger_gpu_idxs = [3]
-
 
 class Frame:
     def __init__(self, idx, img, rects=None, is_df_off=False):  # idx: 帧序号，小的排在前面
@@ -26,7 +23,7 @@ class Frame:
 
 
 class FaceSwapper:
-    def __init__(self, dfm_model_file):
+    def __init__(self, dfm_model_file, extractor_gpu_idx=2, merger_gpu_idx=3):
         # 检查dfm模型文件是否存在
         if dfm_model_file is not None:
             dfm_model_file = ROOT + '/models/' + dfm_model_file
@@ -47,10 +44,8 @@ class FaceSwapper:
         self.cnt = 0
 
         self.workers = []
-        for gpu_idx in extractor_gpu_idxs:
-            self.workers.append(ExtractWorker(self.input_q, self.mid_q, gpu_idx))
-        for gpu_idx in merger_gpu_idxs:
-            self.workers.append(MergeWorker(self.mid_q, self.output_q, dfm_model_file, gpu_idx))
+        self.workers.append(ExtractWorker(self.input_q, self.mid_q, extractor_gpu_idx))
+        self.workers.append(MergeWorker(self.mid_q, self.output_q, dfm_model_file, merger_gpu_idx))
 
         for w in self.workers:
             w.start()
